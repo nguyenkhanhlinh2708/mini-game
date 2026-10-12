@@ -1,0 +1,276 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Né Vật Cản</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #101827;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .game {
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #60a5fa;
+    }
+
+    .info {
+      display: flex;
+      justify-content: space-between;
+      margin: 12px 0;
+      font-size: 18px;
+    }
+
+    canvas {
+      width: 100%;
+      background: #1e293b;
+      border: 3px solid #475569;
+      border-radius: 12px;
+      display: block;
+    }
+
+    button {
+      margin-top: 15px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      background: #3b82f6;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #2563eb;
+    }
+
+    p {
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="game">
+    <h1>🎮 NÉ VẬT CẢN</h1>
+
+    <div class="info">
+      <span>Điểm: <b id="score">0</b></span>
+      <span>Kỷ lục: <b id="best">0</b></span>
+    </div>
+
+    <canvas id="canvas" width="360" height="500"></canvas>
+
+    <button id="start">▶ Bắt đầu chơi</button>
+
+    <p>
+      PC: dùng phím ← → hoặc A, D<br>
+      Điện thoại: chạm bên trái/phải màn hình để di chuyển.
+    </p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const scoreText = document.getElementById("score");
+    const bestText = document.getElementById("best");
+    const startBtn = document.getElementById("start");
+
+    let player, obstacles, score, running, gameOver;
+    let keys = {};
+    let spawnTimer = 0;
+    let best = Number(localStorage.getItem("bestScore") || 0);
+
+    bestText.textContent = best;
+
+    function resetGame() {
+      player = {
+        x: 160,
+        y: 440,
+        w: 36,
+        h: 36,
+        speed: 5
+      };
+
+      obstacles = [];
+      score = 0;
+      spawnTimer = 0;
+      running = true;
+      gameOver = false;
+      scoreText.textContent = score;
+      startBtn.textContent = "↻ Chơi lại";
+      requestAnimationFrame(loop);
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = "#38bdf8";
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+
+      ctx.fillStyle = "white";
+      ctx.fillRect(player.x + 7, player.y + 8, 6, 6);
+      ctx.fillRect(player.x + 23, player.y + 8, 6, 6);
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = "#f87171";
+
+      obstacles.forEach(o => {
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+      });
+    }
+
+    function endGame() {
+      running = false;
+      gameOver = true;
+
+      if (score > best) {
+        best = score;
+        localStorage.setItem("bestScore", best);
+        bestText.textContent = best;
+      }
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#f87171";
+      ctx.font = "bold 32px Arial";
+      ctx.fillText("GAME OVER!", 180, 220);
+
+      ctx.fillStyle = "white";
+      ctx.font = "20px Arial";
+      ctx.fillText("Điểm của bạn: " + score, 180, 260);
+      ctx.font = "16px Arial";
+      ctx.fillText("Nhấn Chơi lại để thử tiếp!", 180, 300);
+    }
+
+    function loop() {
+      if (!running) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Di chuyển nhân vật
+      if (keys["ArrowLeft"] || keys["a"] || keys["A"]) {
+        player.x -= player.speed;
+      }
+
+      if (keys["ArrowRight"] || keys["d"] || keys["D"]) {
+        player.x += player.speed;
+      }
+
+      player.x = Math.max(
+        0,
+        Math.min(canvas.width - player.w, player.x)
+      );
+
+      // Tạo vật cản
+      spawnTimer++;
+
+      if (spawnTimer > Math.max(18, 48 - score / 3)) {
+        const size = 25 + Math.random() * 25;
+
+        obstacles.push({
+          x: Math.random() * (canvas.width - size),
+          y: -size,
+          w: size,
+          h: size,
+          speed: 2.5 + Math.random() * 2 + score * 0.025
+        });
+
+        spawnTimer = 0;
+      }
+
+      // Cập nhật vật cản và kiểm tra va chạm
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.y += o.speed;
+
+        const hit =
+          player.x < o.x + o.w &&
+          player.x + player.w > o.x &&
+          player.y < o.y + o.h &&
+          player.y + player.h > o.y;
+
+        if (hit) {
+          endGame();
+          return;
+        }
+
+        if (o.y > canvas.height) {
+          obstacles.splice(i, 1);
+          score++;
+          scoreText.textContent = score;
+        }
+      }
+
+      drawPlayer();
+      drawObstacles();
+
+      requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+
+      if (["ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key] = false;
+    });
+
+    // Điều khiển cảm ứng trên điện thoại
+    function moveTouch(e) {
+      e.preventDefault();
+
+      const rect = canvas.getBoundingClientRect();
+      const touchX = e.clientX - rect.left;
+      const scaleX = canvas.width / rect.width;
+
+      if (running) {
+        const x = touchX * scaleX;
+        player.x = x < canvas.width / 2
+          ? player.x - 28
+          : player.x + 28;
+
+        player.x = Math.max(
+          0,
+          Math.min(canvas.width - player.w, player.x)
+        );
+      }
+    }
+
+    canvas.addEventListener("pointerdown", moveTouch);
+
+    startBtn.addEventListener("click", resetGame);
+
+    // Màn hình chờ
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.font = "20px Arial";
+    ctx.fillText("Nhấn Bắt đầu để chơi!", 180, 250);
+  </script>
+</body>
+</html>
+
